@@ -1,0 +1,27 @@
+[package]
+name = "coredns-rust"
+version = "0.1.0"
+edition = "2021"
+description = "A DNS server written in Rust"
+
+[dependencies]
+tokio = { version = "1.32", features = ["full", "sync"] }
+anyhow = "1.0"
+clap = { version = "4.4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "registry", "fmt"] }
+tracing-appender = "0.2"
+async-trait = "0.1"
+futures = "0.3"
+tokio-rustls = "0.24"
+rustls = "0.21"
+webpki-roots = "0.25"
+prometheus = { version = "0.13", features = ["process"] }
+lazy_static = "1.4"
+rand = "0.8"
+regex = "1.10"
+sha2 = "0.10"
+hex = "0.4"
+chrono = "0.4"
+moka = { version = "0.12", features = ["sync"] }
+rolling-file = "0.2"

@@ -1,0 +1,132 @@
+## 转发到国内
+.:1053 {
+    forward . 180.184.1.1 180.184.2.2 180.76.76.76 117.50.10.10 52.80.52.52 120.196.141.86 119.29.29.29 223.5.5.5 101.226.4.6 123.125.81.6 210.2.4.8 1.1.8.8 1.1.8.9 {
+      policy random
+      failover SERVFAIL REFUSED
+      max_concurrent 100000
+      health_check 0.5s
+      max_fails 3
+      max_connect_attempts 10
+      next NXDOMAIN
+    }
+    # 360dns
+    forward . tls://112.65.69.15 {
+    tls_servername dot.360.cn
+    max_concurrent 100000
+    health_check 0.5s
+    max_fails 3
+    max_connect_attempts 10
+    next NXDOMAIN
+    }
+    # 阿里dns
+    forward . tls://223.5.5.5 tls://223.6.6.6 {
+    tls_servername dns.alidns.com
+    policy round_robin
+    failover SERVFAIL REFUSED
+    max_concurrent 100000
+    health_check 0.5s
+    max_fails 3
+    max_connect_attempts 10
+    next NXDOMAIN
+    }
+    # onedns
+    forward . tls://106.75.165.71 {
+    tls_servername dot-pure.onedns.net
+    max_concurrent 100000
+    health_check 5s
+    max_fails 3
+    max_connect_attempts 10
+    next NXDOMAIN
+    }
+    # 腾讯
+    forward . tls://1.12.12.12 tls://120.53.53.53 {
+    tls_servername dot.pub
+    policy round_robin
+    failover SERVFAIL REFUSED
+    max_concurrent 100000
+    health_check 0.5s
+    max_fails 3
+    max_connect_attempts 10
+    }
+    health :8100
+    reload 5s
+    prometheus :9153
+    cache {
+      success 50000
+      denial 25000
+    }
+    errors {
+        consolidate 5m ".* i/o timeout$" warning
+        consolidate 30s "^Failed to .+"
+    }
+    log . {
+      class error
+    }
+}
+## 转发到海外
+.:1054 {
+    forward . tls://8.8.8.8 tls://8.8.4.4 {
+      tls_servername dns.google
+      policy round_robin
+      failover SERVFAIL REFUSED
+      max_concurrent 100000
+      health_check 0.5s
+      max_fails 3
+      max_connect_attempts 10
+      next NXDOMAIN
+     }
+    # Cloudflare DNS
+    forward . tls://1.1.1.1 tls://1.0.0.1 {
+    tls_servername 1dot1dot1dot1.cloudflare-dns.com
+    policy round_robin
+    failover SERVFAIL REFUSED
+    max_concurrent 100000
+    health_check 0.5s
+    max_fails 3
+    max_connect_attempts 10
+    next NXDOMAIN
+    }
+    # Quad9 DNS
+    forward . tls://9.9.9.9 tls://149.112.112.112 {
+    tls_servername dns.quad9.net
+    policy round_robin
+    failover SERVFAIL REFUSED
+    max_concurrent 100000
+    health_check 0.5s
+    max_fails 3
+    max_connect_attempts 10
+    next NXDOMAIN
+    }
+    # Cisco OpenDNS
+    forward . tls://208.67.222.222 tls://208.67.220.220 {
+    tls_servername dns.opendns.com
+    policy round_robin
+    failover SERVFAIL REFUSED
+    max_concurrent 100000
+    health_check 0.5s
+    max_fails 3
+    max_connect_attempts 10
+    next NXDOMAIN
+    }
+    # 公共 AdGuard DNS
+    forward . tls://94.140.15.15 tls://94.140.15.14 {
+    tls_servername dns.adguard-dns.com
+    policy round_robin
+    failover SERVFAIL REFUSED
+    max_concurrent 100000
+    health_check 0.5s
+    max_fails 3
+    max_connect_attempts 10
+    }
+    health :8100
+    reload 5s
+    prometheus :9153
+    cache
+    errors {
+      consolidate 5m ".* i/o timeout$" warning
+      consolidate 30s "^Failed to .+"
+    }
+    log . {
+      class error
+    }
+}
