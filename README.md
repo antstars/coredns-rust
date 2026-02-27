@@ -135,3 +135,16 @@ CoreDNS-Rust 兼容标准的 `Corefile` 语法。以下是一个典型的**国�
 ---
 
 *“用最安全的语言，写最硬核的网关。”* 🚀
+=======================================
+
+# coredns-rust
+
+CoreDNS-Rust is a high-performance, pollution-resistant DNS gateway built on Rust's asynchronous runtime (Tokio).
+
+>>>>>>> dcadc94278999e281da29cdded7b6e1bdd52d240
+>>>>>>>
+>>>>>>
+>>>>>
+>>>>
+>>>
+>>
