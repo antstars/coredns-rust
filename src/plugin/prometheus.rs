@@ -3,7 +3,6 @@ use crate::config::PluginConfig;
 use crate::types::DnsMessage;
 use anyhow::Result;
 use std::sync::Arc;
-use tokio::net::TcpListener;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use prometheus::{
     Encoder, TextEncoder, IntCounterVec, HistogramVec, GaugeVec,
@@ -69,8 +68,6 @@ lazy_static! {
         &["server", "view", "zones"]
     ).unwrap();
 
-    // 【注意：删除了已被官方废弃的 FORWARD_REQUESTS_TOTAL 和 FORWARD_RESPONSES_TOTAL】
-
     pub static ref PROXY_REQUEST_DURATION: HistogramVec = register_histogram_vec!(
         "coredns_proxy_request_duration_seconds",
         "Histogram of the time each request took.",
@@ -132,31 +129,54 @@ impl Plugin for PrometheusPlugin {
         if !port.contains(':') { port = format!(":{}", port); }
         let addr = format!("0.0.0.0{}", port);
         
-        tracing::info!("[prometheus] Attempting to start metrics listener on {}", addr);
-        
         let pkg_version = env!("CARGO_PKG_VERSION");
         BUILD_INFO.with_label_values(&["rustc", "rust-rewrite", pkg_version]).set(1.0);
 
         let handle = tokio::spawn(async move {
-            if let Ok(listener) = TcpListener::bind(&addr).await {
-                let encoder = TextEncoder::new();
-                let mut buf = [0u8; 1024];
-                while let Ok((mut stream, _)) = listener.accept().await {
-                    if let Ok(n) = stream.read(&mut buf).await {
-                        if n > 0 && buf.starts_with(b"GET ") {
-                            let metric_families = prometheus::gather();
-                            let mut buffer = vec![];
-                            encoder.encode(&metric_families, &mut buffer).unwrap();
-                            let response = format!(
-                                "HTTP/1.1 200 OK\r\nContent-Type: text/plain; version=0.0.4\r\nContent-Length: {}\r\n\r\n{}",
-                                buffer.len(), String::from_utf8_lossy(&buffer)
-                            );
-                            let _ = stream.write_all(response.as_bytes()).await;
-                        }
+            match tokio::net::TcpListener::bind(&addr).await {
+                Ok(listener) => {
+                    tracing::info!("[prometheus] Successfully bound metrics listener on {}", addr);
+                    
+                    while let Ok((mut stream, _)) = listener.accept().await {
+                        tokio::spawn(async move {
+                            // 1. 【核心修复】：扩大缓冲区到 8KB，确保一口气吞下所有浏览器的冗长请求头
+                            let mut buf = [0u8; 8192]; 
+                            
+                            if let Ok(Ok(n)) = tokio::time::timeout(std::time::Duration::from_secs(2), stream.read(&mut buf)).await {
+                                if n > 0 && buf.starts_with(b"GET ") {
+                                    use prometheus::Encoder;
+                                    let encoder = prometheus::TextEncoder::new();
+                                    let metric_families = prometheus::gather();
+                                    let mut buffer = vec![];
+                                    
+                                    if encoder.encode(&metric_families, &mut buffer).is_ok() {
+                                        let header = format!(
+                                            "HTTP/1.1 200 OK\r\nContent-Type: text/plain; version=0.0.4\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                                            buffer.len()
+                                        );
+                                        
+                                        let mut response = header.into_bytes();
+                                        response.extend_from_slice(&buffer);
+                                        
+                                        // 2. 超时保护写回数据，并确保发送队列清空
+                                        let _ = tokio::time::timeout(std::time::Duration::from_secs(2), stream.write_all(&response)).await;
+                                        let _ = stream.flush().await;
+                                        
+                                        // 3. 【极其关键】：优雅关闭 TCP 的发送端 (发送 FIN 包)
+                                        // 这等于明确告诉浏览器："我的数据发完了，你可以安心渲染了"，彻底杜绝 RST 报错！
+                                        let _ = stream.shutdown().await;
+                                    }
+                                }
+                            }
+                        });
                     }
+                }
+                Err(_) => {
+                    tracing::info!("[prometheus] Port {} is already active (shared with another zone).", addr);
                 }
             }
         });
+        
         Ok(Self { _handle: handle })
     }
 

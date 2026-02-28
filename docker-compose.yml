@@ -1,0 +1,23 @@
+services:
+  coredns-rust:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: coredns-rust
+    restart: always
+    network_mode: "host" # 强烈推荐！网络性能最高，无需繁琐的端口映射
+    # 如果不想用 host 模式，可以注释掉上面那行，改用下面的 ports 映射：
+    # ports:
+    #   - "1053:1053/udp"
+    #   - "1053:1053/tcp"
+    #   - "1054:1054/udp"
+    #   - "1054:1054/tcp"
+    #   - "8100:8100/tcp"
+    #   - "9153:9153/tcp"
+    volumes:
+      # 把宿主机的 Corefile 映射到容器内
+      - ./Corefile:/app/Corefile:ro
+      # 把容器内产生的日志持久化到宿主机的 logs 目录
+      - ./logs:/app/logs:rw
+    environment:
+      - TZ=Asia/Shanghai
