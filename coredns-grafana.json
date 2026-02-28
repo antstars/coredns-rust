@@ -18,10 +18,13 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": 0,
   "links": [],
   "panels": [
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fdlgtorytsutca"
+      },
       "description": "内网设备发给网关的真实总吞吐量",
       "fieldConfig": {
         "defaults": {
@@ -104,7 +107,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.3.3",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -120,6 +123,10 @@
       "type": "timeseries"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fdlgtorytsutca"
+      },
       "description": "经过缓存过滤后，必须发往外网查询的请求量",
       "fieldConfig": {
         "defaults": {
@@ -202,15 +209,17 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.3.3",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "fdlgtorytsutca"
           },
+          "editorMode": "code",
           "expr": "sum(rate(coredns_proxy_request_duration_seconds_count{job=~\"$job\", instance=~\"$instance\", proxy_name=\"forward\"}[$__rate_interval]))",
           "legendFormat": "Forward QPS",
+          "range": true,
           "refId": "A"
         }
       ],
@@ -218,6 +227,10 @@
       "type": "timeseries"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fdlgtorytsutca"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -298,15 +311,17 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.3.3",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "fdlgtorytsutca"
           },
-          "expr": "sum(rate(coredns_dns_responses_total{job=~\"$job\", instance=~\"$instance\", rcode=~\"SERVFAIL|REFUSED\"}[$__rate_interval])) by (rcode)",
+          "editorMode": "code",
+          "expr": "sum(increase(coredns_dns_responses_total{job=~\"$job\", instance=~\"$instance\", rcode=~\"SERVFAIL|REFUSED\"}[$__rate_interval])) by (rcode)",
           "legendFormat": "Error: {{rcode}}",
+          "range": true,
           "refId": "A"
         }
       ],
@@ -314,6 +329,10 @@
       "type": "timeseries"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fdlgtorytsutca"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -395,7 +414,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.3.3",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -464,7 +483,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.3.3",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -472,16 +491,20 @@
             "uid": "fdlgtorytsutca"
           },
           "editorMode": "code",
-          "expr": "sum(rate(coredns_proxy_request_duration_seconds_count{job=~\"$job\", instance=~\"$instance\", proxy_name=\"forward\"}[24h])) by (to)",
+          "expr": "sum(increase(coredns_proxy_request_duration_seconds_count{job=~\"$job\", instance=~\"$instance\", proxy_name=\"forward\"}[$__range])) by (to)",
           "legendFormat": "{{to}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "[24h]流量去向 (按上游节点)",
+      "title": "上游请求占比 (随时间范围联动)",
       "type": "piechart"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fdlgtorytsutca"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -562,7 +585,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.3.3",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -649,7 +672,7 @@
           "unit": "s"
         }
       },
-      "pluginVersion": "12.3.3",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -666,6 +689,10 @@
       "type": "heatmap"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "fdlgtorytsutca"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -746,15 +773,17 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.3.3",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "fdlgtorytsutca"
           },
-          "expr": "sum(rate(coredns_dns_responses_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) by (rcode)",
+          "editorMode": "code",
+          "expr": "sum(increase(coredns_dns_responses_total{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])) by (rcode)",
           "legendFormat": "{{rcode}}",
+          "range": true,
           "refId": "A"
         }
       ],
@@ -788,6 +817,7 @@
         "options": [],
         "query": "label_values(up{job=~\"(?i)^coredns_.*\"}, job)",
         "refresh": 1,
+        "regexApplyTo": "value",
         "sort": 1,
         "type": "query"
       },
@@ -809,6 +839,7 @@
         "options": [],
         "query": "label_values(up{job=~\"$job\"}, instance)",
         "refresh": 1,
+        "regexApplyTo": "value",
         "sort": 1,
         "type": "query"
       }
@@ -822,5 +853,6 @@
   "timezone": "browser",
   "title": "CoreDNS 统一业务大盘 (Go & Rust)",
   "uid": "916e3b95-780f-44d0-a46e-91ef75838b3f",
-  "version": 10
+  "version": 18,
+  "weekStart": ""
 }
