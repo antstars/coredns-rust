@@ -1,0 +1,71 @@
+name: Release
+
+# 赋予 Action 创建 Release 和上传文件的权限
+permissions:
+  contents: write
+
+# 触发条件：当你推送以 'v' 开头的 tag 时触发
+on:
+  push:
+    tags:
+      - 'v[0-9]+.*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  upload-assets:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          # ==========================================
+          # Linux 平台
+          # ==========================================
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            friendly_name: linux-x86_64
+
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            friendly_name: linux-aarch64
+
+          # ==========================================
+          # macOS (Apple) 平台
+          # ==========================================
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            friendly_name: apple-x86_64
+
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            friendly_name: apple-aarch64
+
+          # ==========================================
+          # Windows 平台
+          # ==========================================
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            friendly_name: windows-x86_64
+
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+            friendly_name: windows-aarch64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: coredns-rust
+          target: ${{ matrix.target }}
+          # 【核心魔法】：重写输出的压缩包名称，抛弃反人类的 unknown！
+          # 最终文件名会变成例如: coredns-rust-linux-x86_64.tar.gz
+          archive: $bin-${{ matrix.friendly_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
