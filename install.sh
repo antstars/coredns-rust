@@ -54,11 +54,13 @@ fi
 
 info "检测到环境: $TARGET_OS ($TARGET_ARCH)"
 
-# 4. 获取最新版本号
+# 4. 获取最新版本号 (完美绕过 GitHub API 限制的黑魔法)
 info "正在向 GitHub 获取最新版本信息..."
-LATEST_TAG=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
-if [ -z "$LATEST_TAG" ]; then
+# 通过追踪 /releases/latest 的 302 重定向 URL 来提取版本号
+LATEST_TAG=$(curl -Ls -o /dev/null -w %{url_effective} "https://github.com/${REPO}/releases/latest" | awk -F '/' '{print $NF}')
+
+if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "latest" ]; then
     error "获取最新版本失败！请检查网络，或确认 ${REPO} 仓库是否已设为公开 (Public)。"
 fi
 info "发现最新版本: ${LATEST_TAG}"
