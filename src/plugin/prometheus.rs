@@ -4,9 +4,12 @@ use crate::types::DnsMessage;
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use prometheus::{
-    Encoder, TextEncoder, IntCounterVec, HistogramVec, GaugeVec,
-    register_int_counter_vec, register_histogram_vec, register_gauge_vec,
+
+// 【核心修复】：加上 `::` 强制指向外部官方 crate，并把用到的所有组件一次性导入，彻底解决文件名遮蔽问题！
+use ::prometheus::{
+    Encoder, TextEncoder, IntCounterVec, HistogramVec, GaugeVec, IntCounter,
+    register_int_counter_vec, register_histogram_vec, register_gauge_vec, 
+    register_int_counter, gather
 };
 use lazy_static::lazy_static;
 
@@ -87,7 +90,7 @@ lazy_static! {
         &["proto", "proxy_name", "to"]
     ).unwrap();
 
-    pub static ref FORWARD_MAX_CONCURRENT_REJECTS: prometheus::IntCounter = prometheus::register_int_counter!(
+    pub static ref FORWARD_MAX_CONCURRENT_REJECTS: IntCounter = register_int_counter!(
         "coredns_forward_max_concurrent_rejects_total",
         "Counter of the number of queries rejected because the concurrent queries were at maximum."
     ).unwrap();
@@ -110,7 +113,7 @@ lazy_static! {
         &["hash", "value"]
     ).unwrap();
 
-    pub static ref RELOAD_FAILED_TOTAL: prometheus::IntCounter = prometheus::register_int_counter!(
+    pub static ref RELOAD_FAILED_TOTAL: IntCounter = register_int_counter!(
         "coredns_reload_failed_total",
         "Counter of the number of failed reload attempts."
     ).unwrap();
@@ -139,14 +142,13 @@ impl Plugin for PrometheusPlugin {
                     
                     while let Ok((mut stream, _)) = listener.accept().await {
                         tokio::spawn(async move {
-                            // 1. 【核心修复】：扩大缓冲区到 8KB，确保一口气吞下所有浏览器的冗长请求头
                             let mut buf = [0u8; 8192]; 
                             
                             if let Ok(Ok(n)) = tokio::time::timeout(std::time::Duration::from_secs(2), stream.read(&mut buf)).await {
                                 if n > 0 && buf.starts_with(b"GET ") {
-                                    use prometheus::Encoder;
-                                    let encoder = prometheus::TextEncoder::new();
-                                    let metric_families = prometheus::gather();
+                                    // 【核心修复】：直接使用干净的变量名，彻底抛弃前缀
+                                    let encoder = TextEncoder::new();
+                                    let metric_families = gather();
                                     let mut buffer = vec![];
                                     
                                     if encoder.encode(&metric_families, &mut buffer).is_ok() {
@@ -158,12 +160,8 @@ impl Plugin for PrometheusPlugin {
                                         let mut response = header.into_bytes();
                                         response.extend_from_slice(&buffer);
                                         
-                                        // 2. 超时保护写回数据，并确保发送队列清空
                                         let _ = tokio::time::timeout(std::time::Duration::from_secs(2), stream.write_all(&response)).await;
                                         let _ = stream.flush().await;
-                                        
-                                        // 3. 【极其关键】：优雅关闭 TCP 的发送端 (发送 FIN 包)
-                                        // 这等于明确告诉浏览器："我的数据发完了，你可以安心渲染了"，彻底杜绝 RST 报错！
                                         let _ = stream.shutdown().await;
                                     }
                                 }
