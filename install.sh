@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 
 # ============================================================================
-# CoreDNS Rust - 高性能 DNS 网关一键安装脚本
+# CoreDNS Rust - 极速二进制安装脚本 (基于 GitHub Releases)
 # ============================================================================
 
 set -e # 遇到错误立即退出
 
 # ==============================
-# 变量配置区 (请根据实际情况修改 REPO_URL)
+# 变量配置区
 # ==============================
-REPO_URL="https://github.com/antstars/coredns-rust.git"
+REPO="antstarse/coredns-rust"
 APP_NAME="coredns-rust"
 BIN_PATH="/usr/local/bin/${APP_NAME}"
 CONF_DIR="/etc/${APP_NAME}"
 LOG_DIR="/var/log/${APP_NAME}"
-WORK_DIR="/tmp/${APP_NAME}-build"
+TMP_DIR="/tmp/${APP_NAME}-install"
 
-# 打印带颜色的日志
+# 打印日志函数
 info()  { echo -e "\033[1;32m[INFO]\033[0m $1"; }
 warn()  { echo -e "\033[1;33m[WARN]\033[0m $1"; }
 error() { echo -e "\033[1;31m[ERROR]\033[0m $1"; exit 1; }
@@ -26,60 +26,83 @@ if [ "$EUID" -ne 0 ]; then
   error "请使用 sudo 或 root 权限运行此安装脚本！"
 fi
 
-# 2. 检查依赖项 (Git & Rust)
-info "正在检查系统依赖..."
-if ! command -v git &> /dev/null; then
-    error "未检测到 git，请先安装 git (例如: apt install git 或 yum install git)。"
+# 2. 依赖检查 (只需要 curl 和 tar)
+if ! command -v curl &> /dev/null || ! command -v tar &> /dev/null; then
+    error "未检测到 curl 或 tar，请先安装它们 (例如: apt install curl tar)。"
 fi
 
-if ! command -v cargo &> /dev/null; then
-    warn "未检测到 Rust 工具链，正在尝试为当前用户临时加载环境变量..."
-    if [ -f "$HOME/.cargo/env" ]; then
-        source "$HOME/.cargo/env"
-    elif [ -f "/root/.cargo/env" ]; then
-        source "/root/.cargo/env"
-    else
-        error "未找到 cargo。请先运行 'curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh' 安装 Rust。"
-    fi
+# 3. 自动探测系统与架构
+info "正在探测系统环境..."
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+
+if [ "$OS" = "Linux" ]; then
+    TARGET_OS="linux"
+elif [ "$OS" = "Darwin" ]; then
+    TARGET_OS="apple"
+else
+    error "不支持的操作系统: $OS"
 fi
 
-# 3. 拉取源码
-info "正在拉取最新源码..."
-rm -rf "$WORK_DIR"
-git clone "$REPO_URL" "$WORK_DIR"
-cd "$WORK_DIR"
+if [ "$ARCH" = "x86_64" ]; then
+    TARGET_ARCH="x86_64"
+elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+    TARGET_ARCH="aarch64"
+else
+    error "不支持的 CPU 架构: $ARCH (当前仅支持 x86_64 和 aarch64/arm64)"
+fi
 
-# 4. 编译极限性能版
-info "正在使用 Cargo 编译 Release 版本 (这可能需要几分钟)..."
-cargo build --release
+info "检测到环境: $TARGET_OS ($TARGET_ARCH)"
 
-# 5. 设置系统目录与用户
-info "正在配置系统目录与运行权限..."
+# 4. 获取最新版本号
+info "正在向 GitHub 获取最新版本信息..."
+LATEST_TAG=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+if [ -z "$LATEST_TAG" ]; then
+    error "获取最新版本失败！请检查网络，或确认 ${REPO} 仓库是否已设为公开 (Public)。"
+fi
+info "发现最新版本: ${LATEST_TAG}"
+
+# 5. 下载并解压
+FILENAME="${APP_NAME}-${TARGET_OS}-${TARGET_ARCH}.tar.gz"
+DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${LATEST_TAG}/${FILENAME}"
+
+info "正在下载: $DOWNLOAD_URL"
+rm -rf "$TMP_DIR" && mkdir -p "$TMP_DIR"
+cd "$TMP_DIR"
+
+# 下载文件 (带进度条)
+curl -L -o "$FILENAME" "$DOWNLOAD_URL"
+
+# 解压并安装到系统目录
+info "正在解压并安装..."
+tar -xzf "$FILENAME"
+cp "$APP_NAME" "$BIN_PATH"
+chmod 755 "$BIN_PATH"
+
+# 6. 设置配置目录与用户
+info "正在配置运行环境..."
 mkdir -p "$CONF_DIR"
 mkdir -p "$LOG_DIR"
 
-# 如果用户不存在，则创建专用的无登录权限系统用户
 if ! id "coredns" &>/dev/null; then
     useradd -r -M -s /bin/false coredns
 fi
 
-# 拷贝二进制文件和配置文件
-cp target/release/${APP_NAME} "$BIN_PATH"
-# 如果仓库中有 Corefile 则拷贝，否则创建一个基本的兜底配置
-if [ -f "Corefile" ]; then
-    cp Corefile "$CONF_DIR/Corefile"
-else
-    warn "源码中未找到 Corefile，创建默认配置..."
-    echo ".:53 { forward . 8.8.8.8 }" > "$CONF_DIR/Corefile"
+# 从你的 GitHub 仓库主分支直接拉取默认配置兜底
+if [ ! -f "$CONF_DIR/Corefile" ]; then
+    info "未找到本地配置，正在拉取默认 Corefile..."
+    if ! curl -sSL "https://raw.githubusercontent.com/${REPO}/main/Corefile" -o "$CONF_DIR/Corefile"; then
+        warn "拉取 Corefile 失败，将创建极其基础的兜底配置..."
+        echo ".:53 { forward . 8.8.8.8 }" > "$CONF_DIR/Corefile"
+    fi
 fi
 
-# 赋予目录权限
 chown -R coredns:coredns "$CONF_DIR"
 chown -R coredns:coredns "$LOG_DIR"
-chmod 755 "$BIN_PATH"
 
-# 6. 生成 Systemd 守护进程文件
-info "正在生成 systemd 服务文件..."
+# 7. 生成并启动 Systemd 守护进程
+info "正在注册 systemd 服务..."
 cat <<EOF > /etc/systemd/system/${APP_NAME}.service
 [Unit]
 Description=CoreDNS Rust - High Performance DNS Server
@@ -93,13 +116,11 @@ Group=coredns
 WorkingDirectory=${LOG_DIR}
 ExecStart=${BIN_PATH} --config ${CONF_DIR}/Corefile
 
-# 性能与系统上限突破
 LimitNOFILE=1048576
 LimitNPROC=1048576
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 
-# 容灾机制
 Restart=always
 RestartSec=3s
 TimeoutStopSec=10s
@@ -108,24 +129,21 @@ TimeoutStopSec=10s
 WantedBy=multi-user.target
 EOF
 
-# 7. 启动服务
-info "重新加载 systemd 并启动 ${APP_NAME}..."
 systemctl daemon-reload
-systemctl enable ${APP_NAME}.service
-systemctl restart ${APP_NAME}.service
+systemctl enable --now ${APP_NAME}.service
 
 # 8. 检查状态
 sleep 2
 if systemctl is-active --quiet ${APP_NAME}.service; then
     info "=========================================================="
-    info "安装成功！${APP_NAME} 已在后台全速运行 🚀"
+    info "🎉 安装成功！${APP_NAME} (${LATEST_TAG}) 已全速启动！"
     info "查看运行状态: systemctl status ${APP_NAME}"
     info "查看实时日志: journalctl -u ${APP_NAME} -f"
-    info "配置文件路径: ${CONF_DIR}/Corefile"
+    info "修改配置文件: nano ${CONF_DIR}/Corefile"
     info "=========================================================="
 else
-    error "服务启动失败，请使用 'journalctl -u ${APP_NAME} -n 50' 查看错误日志。"
+    error "服务启动异常，请运行 'journalctl -u ${APP_NAME} -n 50' 检查原因。"
 fi
 
-# 清理编译目录
-rm -rf "$WORK_DIR"
+# 清理临时目录
+rm -rf "$TMP_DIR"
