@@ -39,7 +39,7 @@
 **Bash**
 
 ```
-curl -sSL https://raw.githubusercontent.com/your-username/coredns-rust/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/antstars/coredns-rust/main/install.sh | sudo bash
 ```
 
 *(安装后可使用 `systemctl status coredns-rust` 查看运行状态)*
