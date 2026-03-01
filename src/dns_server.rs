@@ -8,18 +8,22 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::watch;
 use std::collections::HashMap;
 
+/// DNS Server instance that handles UDP and TCP connections
 pub struct DnsServer {
     config: Arc<Config>,
     _shared: Arc<SharedState>,
 }
 
 impl DnsServer {
+    /// Create a new DNS server instance
     pub fn new(config: Config, shared: Arc<SharedState>) -> Result<Self> {
         Ok(Self { config: Arc::new(config), _shared: shared })
     }
 
+    /// Run the DNS server, listening on configured ports
+    /// Returns Ok(true) if reload was triggered, Ok(false) if server exited normally
     pub async fn run(&self, default_address: String, mut reload_rx: watch::Receiver<bool>) -> Result<bool> {
-        // 提取默认绑定的 IP（比如 0.0.0.0），但舍弃默认的 53 端口
+        // Extract the base IP address from the default address (e.g., "0.0.0.0" from "0.0.0.0:53")
         let base_ip = default_address.split(':').next().unwrap_or("0.0.0.0");
 
         // 按监听端口分组 (bind_addr -> Vec<Zone Index>)

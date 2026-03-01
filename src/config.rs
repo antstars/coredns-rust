@@ -26,8 +26,10 @@ enum Token { Text(String), OpenBrace, CloseBrace, Newline }
 struct RawZone { name: String, plugins: Vec<PluginConfig> }
 
 impl Config {
+    /// Load configuration from a file path
     pub fn load(path: &str, shared: Arc<SharedState>) -> Result<Self> {
-        let content = std::fs::read_to_string(path).unwrap_or_else(|_| ".:53 { dummy }".to_string());
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| anyhow::anyhow!("Failed to read config file '{}': {}", path, e))?;
         Self::parse(&content, shared)
     }
 
@@ -100,6 +102,7 @@ impl Config {
         Ok(zones)
     }
 
+    /// Parse a configuration block starting at position i
     fn parse_block(tokens: &[Token], mut i: usize) -> Result<(Vec<PluginConfig>, usize)> {
         let mut plugins = Vec::new();
         while i < tokens.len() {
