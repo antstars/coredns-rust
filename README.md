@@ -1,5 +1,9 @@
 # CoreDNS-Rust 🦀 🛡️
 
+**[🇨🇳 中文版](README_CN.md)** | **[🇺🇸 English](README.md)**
+
+---
+
 **CoreDNS-Rust** is a high-performance, pollution-resistant DNS gateway built on Rust's asynchronous runtime (Tokio). It maintains full compatibility with CoreDNS's `Corefile` configuration syntax while being rebuilt from the ground up for **DNS-over-TLS (DoT) cascading failover**, **lock-free multi-core caching**, and **zero-packet-loss hot reload**.
 
 In stress tests, it demonstrates **33,000+ QPS** with **0% packet loss**. Perfect for enterprise DNS split-routing gateways, home anti-pollution side routers, or any scenario requiring ultra-low latency and high availability.
@@ -63,6 +67,20 @@ services:
 
 Start with `docker compose up -d`.
 
+### Option C: Build from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/antstars/coredns-rust.git
+cd coredns-rust
+
+# Build in release mode
+cargo build --release
+
+# Run
+./target/release/coredns-rust --config Corefile
+```
+
 ---
 
 ## 🛠️ Configuration Example (Corefile)
@@ -123,6 +141,20 @@ Fully compatible with standard syntax. Below is a typical **domestic/internation
 }
 ```
 
+### Configuration Options Reference
+
+| Option | Description | Default | Example |
+|--------|-------------|---------|---------|
+| `policy` | Load balancing strategy | `random` | `sequential`, `round_robin`, `random` |
+| `health_check` | Health check interval | `500ms` | `1s`, `500ms`, `2m` |
+| `max_fails` | Failures before marking unhealthy | `2` | `1-10` |
+| `max_concurrent` | Max concurrent queries | unlimited | `100000` |
+| `tls_servername` | SNI for DoT | upstream IP | `dns.google` |
+| `failover` | RCODEs to trigger failover | none | `SERVFAIL REFUSED` |
+| `next` | RCODEs to cascade to next tier | none | `NXDOMAIN` |
+| `except` | Domains to exclude | all | `internal.local` |
+| `force_tcp` | Force TCP instead of UDP | `false` | `true` |
+
 ---
 
 ## 🧩 Supported Plugins
@@ -141,42 +173,68 @@ Highly decoupled plugin architecture with onion-model interception:
 
 ---
 
+## 📊 Performance Benchmarks
+
+| Metric | Value | Test Environment |
+|--------|-------|------------------|
+| Max QPS | 33,000+ | 8-core, 16GB RAM |
+| Packet Loss | 0% | Under max load |
+| Cache Hit Latency | ~0.1ms | LRU cache |
+| Hot Reload Time | <100ms | Config change |
+| Memory Usage | ~50MB | Idle |
+| Memory Usage | ~200MB | Under load |
+
+---
+
 ## 🤝 Contributing
 
 Minimal plugin extension experience!
 
 To write a new plugin, simply create a module in `src/plugin/`, implement the `process` (request inbound) and `post_process` (response outbound) methods of the `Plugin` trait, and register it in the `mod.rs` routing factory. Issues and Pull Requests are welcome!
 
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
-
----
-
-## 📊 Performance Benchmarks
-
-| Metric | Value |
-|--------|-------|
-| Max QPS | 33,000+ |
-| Packet Loss | 0% |
-| Cache Hit Latency | ~0.1ms |
-| Hot Reload Time | <100ms |
-| Memory Usage | ~50MB (idle) |
-
----
-
-## 🔧 Build from Source
+### Development Setup
 
 ```bash
-# Clone the repository
+# Clone and enter the repository
 git clone https://github.com/antstars/coredns-rust.git
 cd coredns-rust
 
-# Build in release mode
-cargo build --release
+# Build in debug mode
+cargo build
 
-# Run
-./target/release/coredns-rust --config Corefile
+# Run tests
+cargo test
+
+# Run with custom config
+cargo run -- --config Corefile
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**Issue: "Address already in use"**
+```bash
+# Check if port 53 is already bound
+sudo lsof -i :53
+# Stop conflicting service (e.g., systemd-resolved)
+sudo systemctl stop systemd-resolved
+```
+
+**Issue: "Too many open files"**
+```bash
+# Increase file descriptor limit
+ulimit -n 65535
+# Or edit /etc/security/limits.conf
+```
+
+**Issue: Permission denied on port 53**
+```bash
+# Use capabilities instead of root
+sudo setcap 'cap_net_bind_service=+ep' ./target/release/coredns-rust
+# Or use a port > 1024 and redirect with iptables
 ```
 
 ---
@@ -185,5 +243,19 @@ cargo build --release
 
 - **Issues**: https://github.com/antstars/coredns-rust/issues
 - **Discussions**: https://github.com/antstars/coredns-rust/discussions
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+## 🙏 Acknowledgments
+
+- [CoreDNS](https://coredns.io/) - The original DNS server
+- [Tokio](https://tokio.rs/) - Async runtime for Rust
+- [Moka](https://github.com/moka-rs/moka) - High-performance cache library
 
 ---
