@@ -96,7 +96,13 @@ async fn async_main(cores: usize) -> Result<()> {
 
         let server = dns_server::DnsServer::new(cfg, shared.clone())?;
         
-        let reload_rx = shared.reload_rx.lock().unwrap().take().unwrap();
+        // Safely extract reload channel with proper error handling
+        let reload_rx = shared
+            .reload_rx
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to acquire reload_rx lock: {}", e))?
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("reload_rx channel already taken - possible configuration issue"))?;
 
         let is_reload = server.run(args.address.clone(), reload_rx).await?;
         

@@ -46,7 +46,14 @@ impl Plugin for WhoamiPlugin {
 
         if qtype != 1 && qtype != 28 { return Ok(msg.clone()); }
 
-        let client = msg.client_addr.unwrap();
+        // Safely extract client address (already checked is_none above, but use if let for safety)
+        let client = match &msg.client_addr {
+            Some(addr) => addr,
+            None => {
+                tracing::debug!("[whoami] No client address available, skipping");
+                return Ok(msg.clone());
+            }
+        };
         let client_ip = client.ip();
         let client_port = client.port();
 
